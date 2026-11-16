@@ -64,7 +64,9 @@
   // ---------------- status ----------------
   function renderStatus() {
     const s = state.status;
-    const mode = s.armed
+    const mode = s.standby
+      ? badge('STANDBY — previous version still running; read-only', 'warning')
+      : s.armed
       ? badge('ARMED — router changes enabled', 'danger')
       : s.dryRun
         ? badge('DRY RUN — no router changes', 'info')
@@ -74,7 +76,9 @@
       : s.lastRouterOkAt ? badge('Connected', 'success') : badge('Not checked yet', 'secondary');
     const ac = s.accessControlEnabled === true ? badge('On', 'success') : s.accessControlEnabled === false ? badge('Off', 'warning') : badge('Unknown', 'secondary');
     const engineAge = s.lastTickAt ? (Date.now() - new Date(s.lastTickAt)) / 1000 : Infinity;
-    const engine = !s.schedulerEnabled
+    const engine = s.standby
+      ? badge('Waiting to take over', 'warning')
+      : !s.schedulerEnabled
       ? badge('Scheduler off (SCHEDULER_ENABLED=false)', 'warning')
       : engineAge < 150 ? badge('Running', 'success') : badge('Stalled', 'danger');
 

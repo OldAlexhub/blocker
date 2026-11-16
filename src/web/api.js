@@ -16,6 +16,15 @@ export function apiRouter({ config, store, reconciler, protection, logger }) {
   const r = express.Router();
   const tz = config.timezone;
 
+  // In standby (previous version still running during a deploy) the dashboard is
+  // read-only, so nothing changes underneath the instance that is scheduling.
+  r.use((req, _res, next) => {
+    if (req.method !== 'GET' && !reconciler.active) {
+      return next(httpError(503, 'This instance is starting up (the previous version is still running). Try again in a moment.'));
+    }
+    next();
+  });
+
   // ---------- full dashboard state ----------
   r.get('/state', async (_req, res) => {
     const now = new Date();
@@ -57,6 +66,7 @@ export function apiRouter({ config, store, reconciler, protection, logger }) {
       now,
       status: {
         ...reconciler.status,
+        standby: !reconciler.active,
         armed,
         dryRun: config.dryRun,
         schedulerEnabled: config.schedulerEnabled,

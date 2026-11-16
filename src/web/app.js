@@ -27,7 +27,9 @@ export function createApp({ config, pool, store, reconciler, protection, logger 
   app.use(express.json({ limit: '50kb' }));
   app.use(express.urlencoded({ extended: false, limit: '10kb' }));
 
-  app.get('/healthz', (_req, res) => res.json({ ok: true, lastTickAt: reconciler.status.lastTickAt }));
+  app.get('/healthz', (_req, res) =>
+    res.json({ ok: true, role: reconciler.active ? 'active' : 'standby', lastTickAt: reconciler.status.lastTickAt }),
+  );
 
   app.use(
     session({

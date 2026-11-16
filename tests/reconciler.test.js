@@ -258,3 +258,20 @@ test('disarm restores everything the app blocked', async () => {
   assert.equal(ctx.router.devices.get(TABLET).allowOrBlock, 'Allow');
   assert.equal(await ctx.rec.isArmed(), false);
 });
+
+test('standby instance (lock held elsewhere) never touches the router until activated', async () => {
+  const ctx = setup();
+  const { kid } = await discover(ctx);
+  kid.restrictions_enabled = true;
+  ctx.store.addSchedule(night([kid.id]));
+  const standby = ctx.make();
+  standby.active = false;
+  const before = ctx.router.calls.length;
+  await standby.tick({ forcePoll: true, trigger: 'startup' });
+  await assert.rejects(standby.checkRouter(), /Standby/);
+  await assert.rejects(standby.arm(), /Standby/);
+  assert.equal(ctx.router.calls.length, before);
+  standby.active = true; // previous instance stopped, lock acquired
+  await standby.tick({ forcePoll: true, trigger: 'startup' });
+  assert.equal(ctx.router.devices.get(KID).allowOrBlock, 'Block');
+});

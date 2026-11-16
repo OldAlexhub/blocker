@@ -36,8 +36,11 @@ export class Reconciler {
     pollMinutes = 5,
     verifyDelayMs = 2500,
     now = () => new Date(),
+    active = true,
   }) {
     Object.assign(this, { store, router, protection, logger, timezone, dryRun, schedulerEnabled, pollMinutes, verifyDelayMs, now });
+    /** false = standby (another instance holds the scheduler lock): never touch the router. */
+    this.active = active;
     this.status = {
       lastTickAt: null,
       lastPollAt: null,
@@ -58,6 +61,7 @@ export class Reconciler {
    * status.lastError, and the next tick retries from scratch.
    */
   tick({ forcePoll = false, trigger = 'schedule' } = {}) {
+    if (!this.active) return Promise.resolve();
     if (trigger === 'schedule' && this.#pending > 0) return this.#chain;
     return this.#exclusive(async () => {
       await this.#run({ forcePoll, trigger });
@@ -125,6 +129,7 @@ export class Reconciler {
   // ---------------- internals ----------------
 
   #exclusive(fn) {
+    if (!this.active) return Promise.reject(new Error('Standby: another instance is running the scheduler'));
     this.#pending++;
     const run = this.#chain.then(fn).finally(() => this.#pending--);
     this.#chain = run.catch((err) => {

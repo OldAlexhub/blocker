@@ -23,6 +23,9 @@ if (-not (Test-Path "$Root\node_modules")) { throw "node_modules missing. Run 'n
 & icacls "$Root\.env" /inheritance:r /grant:r "SYSTEM:(R)" "Administrators:(F)" "$($env:USERNAME):(F)" | Out-Null
 Write-Host "Restricted permissions on .env"
 
+# Stop any previous copy (old task run, orphaned server.js) so the new one can take the instance lock.
+& "$PSScriptRoot\stop.ps1"
+
 $action    = New-ScheduledTaskAction -Execute $node -Argument "`"$Root\src\supervisor.js`"" -WorkingDirectory $Root
 $trigger   = New-ScheduledTaskTrigger -AtStartup
 $trigger.Delay = 'PT30S'   # give the network and PostgreSQL a head start

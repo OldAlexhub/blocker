@@ -2,8 +2,8 @@
 # Stops and removes the boot task. Does NOT touch the router or the database.
 $ErrorActionPreference = 'Stop'
 $TaskName = 'Nexus Internet Scheduler'
+& "$PSScriptRoot\stop.ps1"
 if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
-  Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
   Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
   Write-Host "Removed task '$TaskName'."
 } else {

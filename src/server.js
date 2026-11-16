@@ -24,9 +24,15 @@ async function main() {
   await waitForDatabase(pool, logger);
   await migrate(pool, logger);
 
-  const lock = await acquireInstanceLock(config.databaseUrl, logger);
+  const { client: lock, holder } = await acquireInstanceLock(config.databaseUrl, logger);
   if (!lock) {
-    logger.error('Another instance of Nexus Internet Scheduler is already running. Exiting.');
+    logger.error(
+      { holder },
+      holder
+        ? `Another instance is already running (connected from ${holder.client ?? 'this machine'} since ${holder.since}, DB pid ${holder.pid}). ` +
+            'Stop it first: scripts\\stop.ps1 on the server. Exiting.'
+        : 'Another instance of Nexus Internet Scheduler is already running. Exiting.',
+    );
     await pool.end();
     process.exit(EXIT_ALREADY_RUNNING);
   }
@@ -93,6 +99,9 @@ async function main() {
   }
   for (const sig of ['SIGINT', 'SIGTERM', 'SIGBREAK']) process.on(sig, () => shutdown(sig));
   process.on('message', (m) => m === 'shutdown' && shutdown('supervisor'));
+  // Started by the supervisor: if it dies (e.g. the boot task is stopped), Windows does
+  // not kill us. Exit too, so an orphan never keeps holding the instance lock.
+  if (process.send) process.on('disconnect', () => shutdown('supervisor exited'));
 }
 
 process.on('unhandledRejection', (err) => logger.error({ err: err?.message ?? String(err) }, 'Unhandled rejection'));

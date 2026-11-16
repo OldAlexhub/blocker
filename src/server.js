@@ -7,6 +7,7 @@ import { PgStore } from './db/store.js';
 import { Protection } from './core/protection.js';
 import { createRouterAdapter } from './router/index.js';
 import { Reconciler } from './services/reconciler.js';
+import { seedAdminUser } from './services/seedAdmin.js';
 import { createApp } from './web/app.js';
 
 export const EXIT_ALREADY_RUNNING = 3;
@@ -31,6 +32,10 @@ async function main() {
   }
 
   const store = new PgStore(pool);
+  await seedAdminUser(store, { username: config.dashboardUsername, password: config.dashboardPassword }, logger);
+  if (!(await store.getSetting('admin_user'))) {
+    logger.warn('No dashboard login exists. Set DASHBOARD_USERNAME and DASHBOARD_PASSWORD in .env and restart.');
+  }
   const protection = await Protection.detect({ routerHost: config.routerHost, extraMacs: config.protectedMacs, logger });
   const router = createRouterAdapter(config, protection, logger);
   const reconciler = new Reconciler({

@@ -37,6 +37,8 @@ export const config = Object.freeze({
   allowLan: bool('ALLOW_LAN', false),
   databaseUrl: env('DATABASE_URL'),
   sessionSecret: env('SESSION_SECRET'),
+  dashboardUsername: env('DASHBOARD_USERNAME', 'admin'),
+  dashboardPassword: process.env.DASHBOARD_PASSWORD ?? '', // not trimmed: spaces may be intentional
   routerAdapter: env('ROUTER_ADAPTER', 'netgear'),
   routerHost: env('ROUTER_HOST', '192.168.0.1'),
   routerPort: int('ROUTER_PORT', 5000, 1, 65535),

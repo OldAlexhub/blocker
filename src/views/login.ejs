@@ -6,8 +6,8 @@
       <p class="text-secondary small mb-4">Sign in to manage internet schedules.</p>
       <% if (setupNeeded) { %>
         <div class="alert alert-warning small">
-          No dashboard user exists yet. On the Nexus server run
-          <code>npm run set-password</code>, then reload this page.
+          No dashboard user exists yet. Set <code>DASHBOARD_USERNAME</code> and
+          <code>DASHBOARD_PASSWORD</code> in <code>.env</code> on the Nexus server and restart the app.
         </div>
       <% } %>
       <% if (error) { %><div class="alert alert-danger small"><%= error %></div><% } %>

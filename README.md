@@ -46,6 +46,9 @@ Stack: Node.js 22+, Express 5, EJS, Bootstrap 5 (served locally), PostgreSQL (`p
    - `DATABASE_URL`
    - `ROUTER_PASSWORD`
    - `SESSION_SECRET`: generate one with `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`
+   - `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD`: your dashboard login (password at least 10 characters). Put the password in quotes if it contains `#` or spaces, for example `DASHBOARD_PASSWORD="my #pass word"`.
+
+   On every start, the app writes the dashboard login to PostgreSQL as a scrypt hash. To change the password, edit `.env` and restart.
 
    Leave `DRY_RUN=true` for now.
 
@@ -57,13 +60,7 @@ Stack: Node.js 22+, Express 5, EJS, Bootstrap 5 (served locally), PostgreSQL (`p
 
    You should see your devices with Allow/Block status, and Access Control **ON**.
 
-5. **Create the dashboard login**
-
-   ```powershell
-   npm run set-password
-   ```
-
-6. **Run it**
+5. **Run it**
 
    ```powershell
    npm start

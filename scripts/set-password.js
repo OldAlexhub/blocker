@@ -1,5 +1,8 @@
 /**
- * Create / change the dashboard login.  Usage:  npm run set-password [username]
+ * OPTIONAL: change the dashboard login interactively.  Usage:  npm run set-password [username]
+ * Normally the login is seeded from DASHBOARD_USERNAME / DASHBOARD_PASSWORD in .env
+ * on every start. If DASHBOARD_PASSWORD is set, the next restart replaces whatever
+ * this script stores.
  * Stores only a scrypt hash in application_settings.
  */
 import readline from 'node:readline';

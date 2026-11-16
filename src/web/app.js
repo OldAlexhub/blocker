@@ -53,7 +53,7 @@ export function createApp({ config, pool, store, reconciler, protection, logger 
     const ip = req.ip;
     const admin = await store.getSetting('admin_user');
     const render = (status, error) => res.status(status).render('login', { csrf: csrfToken(req), error, setupNeeded: !admin });
-    if (!admin) return render(400, 'No dashboard user exists yet. Run: npm run set-password');
+    if (!admin) return render(400, 'No dashboard user exists yet. Set DASHBOARD_PASSWORD in .env and restart.');
     if (!loginAllowed(ip)) return render(429, 'Too many failed attempts. Wait 15 minutes.');
     const username = String(req.body.username ?? '');
     const password = String(req.body.password ?? '');

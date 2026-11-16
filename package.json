@@ -1,0 +1,27 @@
+{
+  "name": "nexus-internet-scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted per-device internet scheduler for the NETGEAR C6230 (Access Control via the router's local SOAP service).",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "service": "node src/supervisor.js",
+    "migrate": "node src/db/migrate.js",
+    "set-password": "node scripts/set-password.js",
+    "router-check": "node scripts/router-check.js",
+    "test": "node --test \"tests/**/*.test.js\""
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.9",
+    "ejs": "^3.1.10",
+    "express": "^5.3.0",
+    "express-session": "^1.19.0",
+    "node-cron": "^4.6.0",
+    "pg": "^8.23.1",
+    "pino": "^9.14.0"
+  }
+}

@@ -1,0 +1,29 @@
+<%- include('partials/head', { title: 'Sign in · Nexus Internet Scheduler', csrf }) %>
+<body class="bg-body-tertiary">
+  <main class="login-card card shadow-sm">
+    <div class="card-body p-4">
+      <h1 class="h4 mb-1">Nexus Internet Scheduler</h1>
+      <p class="text-secondary small mb-4">Sign in to manage internet schedules.</p>
+      <% if (setupNeeded) { %>
+        <div class="alert alert-warning small">
+          No dashboard user exists yet. On the Nexus server run
+          <code>npm run set-password</code>, then reload this page.
+        </div>
+      <% } %>
+      <% if (error) { %><div class="alert alert-danger small"><%= error %></div><% } %>
+      <form method="post" action="/login" autocomplete="on">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="mb-3">
+          <label class="form-label" for="username">Username</label>
+          <input class="form-control" id="username" name="username" required autocomplete="username" autofocus>
+        </div>
+        <div class="mb-4">
+          <label class="form-label" for="password">Password</label>
+          <input class="form-control" id="password" name="password" type="password" required autocomplete="current-password">
+        </div>
+        <button class="btn btn-primary w-100" type="submit">Sign in</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

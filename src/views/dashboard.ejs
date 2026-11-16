@@ -1,0 +1,119 @@
+<%- include('partials/head', { title: 'Nexus Internet Scheduler', csrf }) %>
+<body class="bg-body-tertiary">
+  <nav class="navbar bg-body border-bottom sticky-top">
+    <div class="container-xl">
+      <span class="navbar-brand fw-semibold">Nexus Internet Scheduler</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="small text-secondary d-none d-sm-inline"><%= user %></span>
+        <form method="post" action="/logout" class="m-0">
+          <input type="hidden" name="_csrf" value="<%= csrf %>">
+          <button class="btn btn-sm btn-outline-secondary" type="submit">Sign out</button>
+        </form>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container-xl py-3">
+    <div id="alerts" class="alerts"></div>
+
+    <!-- Status -->
+    <section class="card mb-3">
+      <div class="card-body py-2">
+        <div class="status-grid" id="status">
+          <div class="text-secondary small">Loading…</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Devices -->
+    <section class="card mb-3" id="devices-section">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h2 class="h6 m-0 me-auto">Devices</h2>
+        <div class="form-check form-switch m-0 small">
+          <input class="form-check-input" type="checkbox" id="show-offline">
+          <label class="form-check-label" for="show-offline">Show offline</label>
+        </div>
+        <button class="btn btn-sm btn-outline-primary" id="refresh-devices">Refresh from router</button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle m-0">
+          <thead class="table-light">
+            <tr>
+              <th>Device</th>
+              <th class="d-none d-md-table-cell">IP address</th>
+              <th>Internet</th>
+              <th class="text-center">Managed</th>
+              <th class="text-end">Manual control</th>
+            </tr>
+          </thead>
+          <tbody id="devices-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Schedules -->
+    <section class="card mb-3" id="schedules-section">
+      <div class="card-header"><h2 class="h6 m-0">Schedules</h2></div>
+      <div class="card-body border-bottom">
+        <form id="schedule-form" class="row g-3" novalidate>
+          <input type="hidden" id="sched-id">
+          <div class="col-12 col-md-4">
+            <label class="form-label small" for="sched-name">Name</label>
+            <input class="form-control form-control-sm" id="sched-name" maxlength="80" placeholder="School nights" required>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label small" for="sched-start">Block internet at</label>
+            <input class="form-control form-control-sm" id="sched-start" type="time" value="21:00" required>
+          </div>
+          <div class="col-6 col-md-2">
+            <label class="form-label small" for="sched-end">Restore at</label>
+            <input class="form-control form-control-sm" id="sched-end" type="time" value="07:00" required>
+          </div>
+          <div class="col-12 col-md-4 d-flex align-items-end">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="sched-enabled" checked>
+              <label class="form-check-label small" for="sched-enabled">Enabled</label>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="form-label small mb-1">Days (a window belongs to the day it starts)</div>
+            <div id="sched-days" class="d-flex flex-wrap gap-1"></div>
+          </div>
+          <div class="col-12">
+            <div class="form-label small mb-1">Devices</div>
+            <div id="sched-devices" class="d-flex flex-wrap gap-2"></div>
+          </div>
+          <div class="col-12 d-flex gap-2">
+            <button class="btn btn-sm btn-primary" type="submit" id="sched-save">Save schedule</button>
+            <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="sched-cancel">Cancel edit</button>
+            <span class="small text-secondary align-self-center" id="sched-hint"></span>
+          </div>
+        </form>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle m-0">
+          <thead class="table-light">
+            <tr><th>Name</th><th>Time</th><th>Days</th><th class="d-none d-md-table-cell">Devices</th><th>Enabled</th><th class="text-end"></th></tr>
+          </thead>
+          <tbody id="schedules-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Activity -->
+    <section class="card mb-3">
+      <div class="card-header"><h2 class="h6 m-0">Activity</h2></div>
+      <div class="table-responsive activity-wrap">
+        <table class="table table-sm align-middle m-0">
+          <thead class="table-light"><tr><th>Time</th><th>Device</th><th>Action</th><th>Result</th><th class="d-none d-lg-table-cell">Details</th></tr></thead>
+          <tbody id="activity-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <p class="small text-secondary text-center" id="footer-note"></p>
+  </main>
+
+  <script src="/static/js/app.js" defer></script>
+</body>
+</html>

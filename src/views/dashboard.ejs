@@ -25,6 +25,25 @@
       </div>
     </section>
 
+    <!-- Router health -->
+    <section class="card mb-3" id="health-section">
+      <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <h2 class="h6 m-0 me-auto">Router health</h2>
+        <span class="small text-secondary" id="health-checked"></span>
+        <button class="btn btn-sm btn-outline-danger" id="restart-router">Restart router…</button>
+      </div>
+      <div class="card-body">
+        <div id="health-warnings"></div>
+        <div class="health-grid" id="health">
+          <div class="text-secondary small">Loading…</div>
+        </div>
+        <p class="small text-secondary mt-3 mb-0">
+          Your router reports total traffic only. It cannot show which device is using the internet.
+          To find a heavy user, pause devices one at a time and watch the CPU and ping.
+        </p>
+      </div>
+    </section>
+
     <!-- Devices -->
     <section class="card mb-3" id="devices-section">
       <div class="card-header d-flex flex-wrap align-items-center gap-2">

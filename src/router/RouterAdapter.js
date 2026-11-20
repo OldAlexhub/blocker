@@ -36,6 +36,18 @@ export class RouterAdapter {
   async getAccessControlEnabled() {
     return null;
   }
+  /**
+   * @returns {Promise<{cpuPercent:number|null, memoryPercent:number|null, memoryTotalMb:number|null,
+   *   traffic: null | Record<'today'|'yesterday'|'week'|'month'|'lastMonth', {downloadMb:number|null, uploadMb:number|null}>,
+   *   trafficMeterEnabled: boolean|null}>}
+   */
+  async getRouterHealth() {
+    throw new RouterError('unsupported', 'getRouterHealth() not supported by this adapter');
+  }
+  /** Restart the router. Interrupts the whole network for a few minutes. */
+  async rebootRouter() {
+    throw new RouterError('unsupported', 'rebootRouter() not supported by this adapter');
+  }
   async blockDevice(_mac) {
     throw new RouterError('unsupported', 'blockDevice() not supported by this adapter');
   }

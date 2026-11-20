@@ -55,6 +55,20 @@ export class MockRouterAdapter extends RouterAdapter {
     this.#check('getAccessControlEnabled');
     return this.accessControl;
   }
+  async getRouterHealth() {
+    this.#check('getRouterHealth');
+    const t = (d, u) => ({ downloadMb: d, uploadMb: u });
+    return {
+      cpuPercent: this.cpuPercent ?? 23,
+      memoryPercent: 61,
+      memoryTotalMb: 256,
+      traffic: { today: t(1250.5, 88.2), yesterday: t(4210, 302), week: t(9800, 700), month: t(31000, 2100), lastMonth: t(52000, 3900) },
+      trafficMeterEnabled: true,
+    };
+  }
+  async rebootRouter() {
+    this.#check('rebootRouter');
+  }
   async #set(mac, value) {
     this.#check(`${value === 'Block' ? 'block' : 'unblock'}:${normalizeMac(mac)}`);
     const m = normalizeMac(mac);

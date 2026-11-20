@@ -275,3 +275,44 @@ test('standby instance (lock held elsewhere) never touches the router until acti
   await standby.tick({ forcePoll: true, trigger: 'startup' });
   assert.equal(ctx.router.devices.get(KID).allowOrBlock, 'Block');
 });
+
+test('router health is read-only and reported even when unsupported', async () => {
+  const ctx = setup({ armed: false });
+  const h = await ctx.rec.routerHealth();
+  assert.equal(h.ok, true);
+  assert.equal(typeof h.cpuPercent, 'number');
+  assert.deepEqual(ctx.router.calls, ['getRouterHealth']);
+  ctx.router.down = true;
+  const bad = await ctx.rec.routerHealth();
+  assert.equal(bad.ok, false);
+});
+
+test('router restart: logged, outage not counted as failures, device list re-read afterwards', async () => {
+  const ctx = setup();
+  await discover(ctx);
+  const { restartingUntil } = await ctx.rec.rebootRouter();
+  assert.ok(ctx.router.calls.includes('rebootRouter'));
+  assert.equal(ctx.rec.status.routerFailures, 0);
+  assert.equal(ctx.rec.status.lastPollAt, null);
+  assert.ok(ctx.store.activity.some((a) => a.action === 'router_restart' && a.result === 'requested'));
+  assert.equal((await ctx.rec.routerHealth()).restarting, true);
+
+  // While restarting, ticks don't hit the router.
+  const before = ctx.router.calls.length;
+  await ctx.rec.tick();
+  assert.equal(ctx.router.calls.length, before);
+
+  // After the window the router is polled again and the restart flag clears.
+  ctx.clock.now = new Date(new Date(restartingUntil).getTime() + 1000);
+  await ctx.rec.tick();
+  assert.ok(ctx.router.calls.slice(before).includes('getConnectedDevices'));
+  assert.equal(ctx.rec.status.restartingUntil, null);
+  assert.equal(ctx.rec.status.routerError, null);
+});
+
+test('router restart failure is logged and rethrown', async () => {
+  const ctx = setup();
+  ctx.router.down = true;
+  await assert.rejects(ctx.rec.rebootRouter());
+  assert.ok(ctx.store.activity.some((a) => a.action === 'router_restart' && a.result === 'failed'));
+});

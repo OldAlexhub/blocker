@@ -241,6 +241,68 @@
       : '<tr><td colspan="5" class="text-secondary small p-3">No activity yet.</td></tr>';
   }
 
+  // ---------------- router health ----------------
+  let health = null;
+  const fmtMb = (mb) => {
+    if (mb === null || mb === undefined) return '—';
+    if (mb >= 1024) return `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} GB`;
+    return `${mb >= 100 ? Math.round(mb) : mb.toFixed(1)} MB`;
+  };
+  const levelKind = (v, warn, bad) => (v === null ? 'secondary' : v >= bad ? 'danger' : v >= warn ? 'warning' : 'success');
+
+  function meter(label, value, warn, bad, sub) {
+    const kind = levelKind(value, warn, bad);
+    return `<div class="health-meter">
+      <div class="label">${esc(label)}</div>
+      <div class="big text-${kind === 'success' ? 'body' : kind}">${value === null ? '—' : `${value}%`}</div>
+      <div class="progress" role="progressbar" aria-label="${esc(label)}" aria-valuenow="${value ?? 0}" aria-valuemin="0" aria-valuemax="100">
+        <div class="progress-bar bg-${kind}" data-pct="${value ?? 0}"></div>
+      </div>
+      <div class="small text-secondary mt-1">${sub}</div>
+    </div>`;
+  }
+
+  function renderHealth() {
+    const h = health;
+    if (!h) return;
+    $('#health-checked').textContent = h.checkedAt ? `Checked ${fmtTime(h.checkedAt)}` : '';
+    if (h.restarting) {
+      $('#health-warnings').innerHTML = `<div class="alert alert-info py-2 small mb-3">Router is restarting. Internet should be back around ${fmtTime(h.restartingUntil)}.</div>`;
+      $('#health').innerHTML = '';
+      return;
+    }
+    if (!h.ok) {
+      $('#health-warnings').innerHTML = '';
+      $('#health').innerHTML = `<div class="small text-${h.unsupported ? 'secondary' : 'danger'}">${esc(h.unsupported ? 'This router adapter cannot report health.' : `Could not read router health: ${h.error}`)}</div>`;
+      return;
+    }
+    $('#health-warnings').innerHTML = h.warnings.map((w) => `<div class="alert alert-warning py-2 small mb-3">${esc(w)}</div>`).join('');
+    const cpuSub = h.cpuPercent === null ? 'Not reported' : h.cpuPercent >= 80 ? 'Overloaded: the network will feel slow' : h.cpuPercent >= 50 ? 'Busy' : 'Normal';
+    const memSub = h.memoryPercent === null ? 'Not reported' : `${h.memoryTotalMb ? `of ${h.memoryTotalMb} MB · ` : ''}${h.memoryPercent >= 90 ? 'Nearly full' : h.memoryPercent >= 75 ? 'High' : 'Normal'}`;
+    const t = h.traffic;
+    const row = (name, p) => `<tr><th class="fw-normal text-secondary">${name}</th><td class="text-end">${fmtMb(p?.downloadMb)}</td><td class="text-end">${fmtMb(p?.uploadMb)}</td></tr>`;
+    const traffic = t
+      ? `<div class="health-traffic">
+          <div class="health-label">Internet usage (all devices)</div>
+          <table><thead><tr><th></th><th class="text-end small text-secondary fw-normal">Down</th><th class="text-end small text-secondary fw-normal">Up</th></tr></thead>
+          <tbody>${row('Today', t.today)}${row('Yesterday', t.yesterday)}${row('This month', t.month)}${row('Last month', t.lastMonth)}</tbody></table>
+          ${h.trafficMeterEnabled === false ? '<div class="small text-secondary mt-1">Traffic Meter is off on the router, so these totals may be incomplete.</div>' : ''}
+        </div>`
+      : '<div class="small text-secondary">Traffic totals not available.</div>';
+    $('#health').innerHTML = meter('Router CPU', h.cpuPercent, 50, 80, cpuSub) + meter('Router memory', h.memoryPercent, 75, 90, memSub) + traffic;
+    // CSP forbids inline style attributes; set widths through the CSSOM instead.
+    document.querySelectorAll('#health [data-pct]').forEach((el) => { el.style.width = `${Math.max(0, Math.min(100, Number(el.dataset.pct)))}%`; });
+  }
+
+  async function loadHealth() {
+    try {
+      health = await api('GET', '/api/router/health');
+    } catch (err) {
+      health = { ok: false, error: err.message };
+    }
+    renderHealth();
+  }
+
   // ---------------- load ----------------
   async function load() {
     try {
@@ -374,6 +436,25 @@
     $('#schedules-section').scrollIntoView({ behavior: 'smooth' });
   }
 
+  $('#restart-router').onclick = async () => {
+    const typed = prompt(
+      'RESTART ROUTER\n\nThis frees the router\'s memory and usually fixes a slow, overloaded router.\n' +
+      'EVERY device in the house loses internet for about 3–5 minutes, including this dashboard\'s connection to the router.\n' +
+      'Device rules (Access Control) are kept.\n\nType RESTART to continue:');
+    if (typed !== 'RESTART') return;
+    const btn = $('#restart-router');
+    btn.disabled = true;
+    try {
+      const r = await api('POST', '/api/router/restart', { confirm: 'RESTART' });
+      notify(`Router is restarting. Internet should be back around ${fmtTime(r.restartingUntil)}.`, 'success', 15000);
+    } catch (err) {
+      notify(err.message, 'danger', 15000);
+    } finally {
+      btn.disabled = false;
+    }
+    await Promise.all([load(), loadHealth()]);
+  };
+
   $('#sched-cancel').onclick = resetScheduleForm;
   $('#refresh-devices').onclick = () => act(() => api('POST', '/api/devices/refresh'), (r) => r.ok ? 'Device list refreshed from router.' : `Router error: ${r.error}`);
   $('#show-offline').checked = showOffline;
@@ -397,6 +478,7 @@
   };
 
   load();
-  setInterval(() => { if (!document.hidden) load(); }, POLL_MS);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  loadHealth();
+  setInterval(() => { if (!document.hidden) { load(); loadHealth(); } }, POLL_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { load(); loadHealth(); } });
 })();

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { NetgearSoapAdapter, parseAttach1, parseAttach2 } from '../src/router/netgearSoap.js';
+import { NetgearSoapAdapter, parseAttach1, parseAttach2, parseSystemInfo, parseTrafficMeter } from '../src/router/netgearSoap.js';
 import { normalizeMac, isRandomizedMac } from '../src/core/mac.js';
 
 const ok = (body, headers = {}) =>
@@ -109,4 +109,80 @@ test('commands are serialized (never interleaved)', async () => {
   const r = new NetgearSoapAdapter({ host: 'x', username: 'a', password: 'b', fetchImpl });
   await Promise.all([r.blockDevice('AA:BB:CC:DD:EE:01'), r.unblockDevice('AA:BB:CC:DD:EE:02'), r.getConnectedDevices()]);
   assert.equal(maxActive, 1);
+});
+
+// Shapes below are the real C6230 V1.00.17 answers captured 2026-11-19.
+test('parseSystemInfo / parseTrafficMeter', () => {
+  assert.deepEqual(
+    parseSystemInfo('<NewCPUUtilization>98</NewCPUUtilization><NewPhysicalMemory>256</NewPhysicalMemory><NewMemoryUtilization>86</NewMemoryUtilization>'),
+    { cpuPercent: 98, memoryPercent: 86, memoryTotalMb: 256 },
+  );
+  assert.deepEqual(parseSystemInfo('<Other/>'), { cpuPercent: null, memoryPercent: null, memoryTotalMb: null });
+  const t = parseTrafficMeter(
+    '<NewTodayUpload>17.57</NewTodayUpload><NewTodayDownload>198.30</NewTodayDownload>' +
+      '<NewMonthUpload>17.57/17.57</NewMonthUpload><NewMonthDownload>198.30/198.30</NewMonthDownload>',
+  );
+  assert.deepEqual(t.today, { downloadMb: 198.3, uploadMb: 17.57 });
+  assert.deepEqual(t.month, { downloadMb: 198.3, uploadMb: 17.57 });
+  assert.deepEqual(t.lastMonth, { downloadMb: null, uploadMb: null });
+});
+
+test('getRouterHealth reads system info, traffic meter and meter status', async () => {
+  const { calls, fetchImpl } = fakeRouter({
+    SOAPLogin: () => ok(''),
+    GetSystemInfo: () => ok('<NewCPUUtilization>91</NewCPUUtilization><NewPhysicalMemory>256</NewPhysicalMemory><NewMemoryUtilization>86</NewMemoryUtilization>'),
+    GetTrafficMeterStatistics: () => ok('<NewTodayUpload>1.5</NewTodayUpload><NewTodayDownload>20</NewTodayDownload>'),
+    GetTrafficMeterEnabled: () => ok('<NewTrafficMeterEnable>0</NewTrafficMeterEnable>'),
+  });
+  const r = new NetgearSoapAdapter({ host: 'x', username: 'a', password: 'b', fetchImpl });
+  const h = await r.getRouterHealth();
+  assert.equal(h.cpuPercent, 91);
+  assert.equal(h.memoryPercent, 86);
+  assert.deepEqual(h.traffic.today, { downloadMb: 20, uploadMb: 1.5 });
+  assert.equal(h.trafficMeterEnabled, false);
+  assert.ok(!calls.some((c) => /Set|Configuration|Reboot/.test(c.action)), 'health check must be read-only');
+});
+
+test('getRouterHealth tolerates a router without a traffic meter', async () => {
+  const { fetchImpl } = fakeRouter({
+    SOAPLogin: () => ok(''),
+    GetSystemInfo: () => ok('<NewCPUUtilization>10</NewCPUUtilization>'),
+    // Traffic meter actions fall through to the 404 response code
+  });
+  const r = new NetgearSoapAdapter({ host: 'x', username: 'a', password: 'b', fetchImpl });
+  const h = await r.getRouterHealth();
+  assert.equal(h.cpuPercent, 10);
+  assert.equal(h.traffic, null);
+  assert.equal(h.trafficMeterEnabled, null);
+});
+
+test('rebootRouter wraps Reboot in ConfigurationStarted/Finished', async () => {
+  const { calls, fetchImpl } = fakeRouter({
+    SOAPLogin: () => ok(''),
+    ConfigurationStarted: () => ok(''),
+    Reboot: () => ok(''),
+    ConfigurationFinished: () => ok(''),
+  });
+  const r = new NetgearSoapAdapter({ host: 'x', username: 'a', password: 'b', fetchImpl });
+  await r.rebootRouter();
+  assert.deepEqual(calls.map((c) => c.action), ['SOAPLogin', 'ConfigurationStarted', 'Reboot', 'ConfigurationFinished']);
+});
+
+test('rebootRouter: dropped connection counts as restarting; 501 is reported as unsupported', async () => {
+  const dropped = fakeRouter({
+    SOAPLogin: () => ok(''),
+    ConfigurationStarted: () => ok(''),
+    Reboot: () => { throw new TypeError('fetch failed'); },
+  });
+  await new NetgearSoapAdapter({ host: 'x', username: 'a', password: 'b', fetchImpl: dropped.fetchImpl }).rebootRouter();
+
+  const refused = fakeRouter({
+    SOAPLogin: () => ok(''),
+    ConfigurationStarted: () => ok(''),
+    Reboot: () => new Response('<ResponseCode>501</ResponseCode>', { status: 200 }),
+    ConfigurationFinished: () => ok(''),
+  });
+  const r = new NetgearSoapAdapter({ host: 'x', username: 'a', password: 'b', fetchImpl: refused.fetchImpl });
+  await assert.rejects(r.rebootRouter(), (err) => err.code === 'unsupported');
+  assert.equal(refused.calls.at(-1).action, 'ConfigurationFinished');
 });

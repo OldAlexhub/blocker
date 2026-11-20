@@ -226,6 +226,66 @@ export class NetgearSoapAdapter extends RouterAdapter {
     });
   }
 
+  /**
+   * Read-only router load + traffic totals.
+   * Verified on the C6230 V1.00.17 (2026-11-19): DeviceInfo#GetSystemInfo and
+   * DeviceConfig#GetTrafficMeterStatistics answer; every per-device bandwidth
+   * action (AdvancedQoS:1#GetCurrentDeviceBandwidth etc.) returns 501, so this
+   * router cannot say WHICH device uses the traffic.
+   */
+  getRouterHealth() {
+    return this.#exclusive(async () => {
+      const { text: sys } = await this.#call(DEVICE_INFO, 'GetSystemInfo', {});
+      const health = parseSystemInfo(sys);
+      try {
+        const { text: meter } = await this.#call(DEVICE_CONFIG, 'GetTrafficMeterStatistics', {});
+        health.traffic = parseTrafficMeter(meter);
+      } catch (err) {
+        if (err.code === 'unreachable' || err.code === 'timeout') throw err;
+        health.traffic = null;
+      }
+      try {
+        const { text: en } = await this.#call(DEVICE_CONFIG, 'GetTrafficMeterEnabled', {});
+        const v = tag(en, 'NewTrafficMeterEnable');
+        health.trafficMeterEnabled = v === '1' ? true : v === '0' ? false : null;
+      } catch (err) {
+        if (err.code === 'unreachable' || err.code === 'timeout') throw err;
+        health.trafficMeterEnabled = null;
+      }
+      return health;
+    });
+  }
+
+  /**
+   * Restart the router (frees its memory). Everyone on the network loses internet
+   * for a few minutes. NOT verified on the C6230 (testing it would reboot the router);
+   * a 501 answer means the firmware does not support it.
+   */
+  rebootRouter() {
+    return this.#exclusive(async () => {
+      await this.#call(DEVICE_CONFIG, 'ConfigurationStarted', { NewSessionID: SESSION_ID });
+      try {
+        await this.#call(DEVICE_CONFIG, 'Reboot', {});
+      } catch (err) {
+        // Connection dropped mid-answer: the router is almost certainly already restarting.
+        if (err.code === 'unreachable' || err.code === 'timeout') {
+          this.#authenticated = false;
+          this.#cookie = null;
+          return;
+        }
+        await this.#call(DEVICE_CONFIG, 'ConfigurationFinished', { NewStatus: 'ChangesApplied' }).catch(() => {});
+        if (err.code === 'bad_response') {
+          throw new RouterError('unsupported', 'The router refused the restart command. Restart it with its power button instead.', err);
+        }
+        throw err;
+      }
+      // The router normally drops the connection here because it is already restarting.
+      await this.#call(DEVICE_CONFIG, 'ConfigurationFinished', { NewStatus: 'ChangesApplied' }).catch(() => {});
+      this.#authenticated = false;
+      this.#cookie = null;
+    });
+  }
+
   blockDevice(mac) {
     return this.#exclusive(() => this.#setBlock(mac, 'Block'));
   }
@@ -233,6 +293,38 @@ export class NetgearSoapAdapter extends RouterAdapter {
   unblockDevice(mac) {
     return this.#exclusive(() => this.#setBlock(mac, 'Allow'));
   }
+}
+
+const pct = (v) => {
+  const n = Number(v);
+  return v !== null && v !== '' && Number.isFinite(n) ? n : null;
+};
+
+/** DeviceInfo#GetSystemInfo: CPU %, memory % and total memory (MB). */
+export function parseSystemInfo(xml) {
+  return {
+    cpuPercent: pct(tag(xml, 'NewCPUUtilization')),
+    memoryPercent: pct(tag(xml, 'NewMemoryUtilization')),
+    memoryTotalMb: pct(tag(xml, 'NewPhysicalMemory')),
+  };
+}
+
+/** DeviceConfig#GetTrafficMeterStatistics, in MB. Week/month values look like "total/average". */
+export function parseTrafficMeter(xml) {
+  const mb = (name) => {
+    const v = tag(xml, name);
+    if (v === null) return null;
+    const n = Number(v.split('/')[0]);
+    return Number.isFinite(n) ? n : null;
+  };
+  const period = (p) => ({ downloadMb: mb(`New${p}Download`), uploadMb: mb(`New${p}Upload`) });
+  return {
+    today: period('Today'),
+    yesterday: period('Yesterday'),
+    week: period('Week'),
+    month: period('Month'),
+    lastMonth: period('LastMonth'),
+  };
 }
 
 /** GetAttachDevice2: <Device><IP/><Name/><MAC/><ConnectionType/><AllowOrBlock/>...</Device> */

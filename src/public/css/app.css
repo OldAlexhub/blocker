@@ -10,6 +10,13 @@ body { min-height: 100vh; }
 .status-item .label { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); }
 .status-item .value { font-size: .9rem; font-weight: 500; }
 
+.health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; }
+.health-label, .health-meter .label { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); }
+.health-meter .big { font-size: 1.5rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.health-meter .progress { height: .5rem; }
+.health-traffic table { font-variant-numeric: tabular-nums; }
+.health-traffic td, .health-traffic th { padding: .15rem .5rem .15rem 0; font-size: .85rem; }
+
 .device-name { font-weight: 500; }
 .device-meta { font-size: .75rem; color: var(--bs-secondary-color); word-break: break-all; }
 .device-sub { font-size: .75rem; }

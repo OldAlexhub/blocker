@@ -227,6 +227,49 @@ export function apiRouter({ config, store, reconciler, protection, logger }) {
     res.json({ ok: true });
   });
 
+  // ---------- router health (read-only) ----------
+  // Cached briefly so several open dashboards don't add load to an already busy router.
+  const HEALTH_CACHE_MS = 15_000;
+  const HIGH_CPU = 80;
+  const HIGH_MEM = 90;
+  let healthCache = null;
+  let healthInflight = null;
+  r.get('/router/health', async (_req, res) => {
+    if (!healthCache || Date.now() - healthCache.at > HEALTH_CACHE_MS) {
+      healthInflight ??= reconciler.routerHealth().finally(() => { healthInflight = null; });
+      const h = await healthInflight;
+      healthCache = { at: Date.now(), data: { ...h, checkedAt: new Date().toISOString() } };
+    }
+    const h = healthCache.data;
+    const warnings = [];
+    if (h.ok && h.cpuPercent !== null && h.cpuPercent >= HIGH_CPU) {
+      warnings.push(`Router CPU is at ${h.cpuPercent}%. An overloaded router answers slowly and makes the whole network feel slow. Restarting it usually fixes this.`);
+    }
+    if (h.ok && h.memoryPercent !== null && h.memoryPercent >= HIGH_MEM) {
+      warnings.push(`Router memory is ${h.memoryPercent}% full. A restart frees it.`);
+    }
+    res.json({ ...h, warnings, perDeviceSupported: false, lastRestartAt: lastRestartAt?.toISOString() ?? null });
+  });
+
+  // ---------- router restart ----------
+  const RESTART_COOLDOWN_MS = 10 * 60_000;
+  let lastRestartAt = null;
+  r.post('/router/restart', async (req, res) => {
+    if (req.body.confirm !== 'RESTART') throw httpError(400, 'Type RESTART to confirm');
+    if (lastRestartAt && Date.now() - lastRestartAt < RESTART_COOLDOWN_MS) {
+      const mins = Math.ceil((RESTART_COOLDOWN_MS - (Date.now() - lastRestartAt)) / 60_000);
+      throw httpError(429, `The router was restarted recently. Wait ${mins} more minute(s) for it to come back.`);
+    }
+    try {
+      const out = await reconciler.rebootRouter();
+      lastRestartAt = new Date();
+      healthCache = null;
+      res.json({ ok: true, ...out });
+    } catch (err) {
+      throw httpError(err.code === 'unsupported' ? 501 : 502, `Router restart failed: ${err.message}`);
+    }
+  });
+
   // ---------- router control safety gate ----------
   r.post('/control/check', async (_req, res) => {
     res.json(await reconciler.checkRouter());

@@ -48,6 +48,7 @@ export class Reconciler {
       routerError: null,
       routerFailures: 0,
       nextRouterAttemptAt: null,
+      restartingUntil: null,
       accessControlEnabled: null,
       lastError: null,
     };
@@ -95,6 +96,48 @@ export class Reconciler {
       } catch (err) {
         return { ok: false, error: err.message };
       }
+    });
+  }
+
+  /**
+   * Read-only router load/traffic reading. Not queued behind reconciliation
+   * (the adapter serializes router calls itself) and allowed in standby.
+   */
+  async routerHealth() {
+    if (this.status.restartingUntil && this.now() < new Date(this.status.restartingUntil)) {
+      return { ok: false, restarting: true, restartingUntil: this.status.restartingUntil, error: 'Router is restarting' };
+    }
+    try {
+      return { ok: true, ...(await this.router.getRouterHealth()) };
+    } catch (err) {
+      return { ok: false, error: err.message, unsupported: err.code === 'unsupported' };
+    }
+  }
+
+  /**
+   * Restart the router on operator request. Independent of DRY_RUN / arming: it does
+   * not change any device rule, but it interrupts the whole network for a few minutes.
+   */
+  rebootRouter({ downMinutes = 4 } = {}) {
+    return this.#exclusive(async () => {
+      const now = this.now();
+      try {
+        await this.router.rebootRouter();
+      } catch (err) {
+        await this.#log({ action: 'router_restart', trigger: 'manual', result: 'failed', detail: err.message });
+        throw err;
+      }
+      const until = new Date(now.getTime() + downMinutes * 60_000).toISOString();
+      Object.assign(this.status, {
+        restartingUntil: until,
+        nextRouterAttemptAt: until, // don't count the expected outage as failures
+        routerFailures: 0,
+        routerError: 'Restarting (requested from dashboard)',
+        lastPollAt: null, // re-read the device list as soon as the router is back
+      });
+      await this.#log({ action: 'router_restart', trigger: 'manual', result: 'requested', detail: 'Router restart requested from dashboard; internet down for a few minutes' });
+      this.logger?.warn('Router restart requested by operator');
+      return { restartingUntil: until };
     });
   }
 
@@ -170,6 +213,7 @@ export class Reconciler {
       Object.assign(this.status, {
         lastPollAt: now.toISOString(),
         lastRouterOkAt: now.toISOString(),
+        restartingUntil: null,
         routerError: null,
         routerFailures: 0,
         nextRouterAttemptAt: null,

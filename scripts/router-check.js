@@ -43,6 +43,12 @@ try {
 await step('Login', () => router.authenticate());
 const info = await step('GetInfo', () => router.healthCheck());
 if (info) console.log(`  model=${info.model} firmware=${info.firmware}`);
+const health = await step('GetSystemInfo / GetTrafficMeterStatistics (router health)', () => router.getRouterHealth());
+if (health) {
+  console.log(`  CPU ${health.cpuPercent ?? '?'}%  memory ${health.memoryPercent ?? '?'}% of ${health.memoryTotalMb ?? '?'} MB`);
+  if (health.traffic) console.log(`  today: ${health.traffic.today.downloadMb ?? '?'} MB down / ${health.traffic.today.uploadMb ?? '?'} MB up`);
+  if (health.cpuPercent >= 80) console.log('  WARNING: router CPU is overloaded - a restart usually fixes a slow network.');
+}
 const ac = await step('GetBlockDeviceEnableStatus (Access Control)', () => router.getAccessControlEnabled());
 if (ac !== undefined) console.log(`  Access Control: ${ac === null ? 'unknown (field not returned)' : ac ? 'ON' : 'OFF'}`);
 const devices = await step('GetAttachDevice2 / GetAttachDevice', () => router.getConnectedDevices());

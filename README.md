@@ -17,6 +17,9 @@ Stack: Node.js 22+, Express 5, EJS, Bootstrap 5 (served locally), PostgreSQL (`p
 | SOAP actions `SOAPLogin`, `GetAttachDevice2`, `SetBlockDeviceByMAC`, `GetBlockDeviceEnableStatus` | **Taken from pynetgear; not yet confirmed on your router.** Run `npm run router-check`. |
 | A blocked device keeps Wi-Fi but loses internet | **Expected; test on your router** |
 | Blocks survive a router reboot | **Unknown.** The app re-applies them anyway (see §6) |
+| Router health: `GetSystemInfo` (CPU/memory), `GetTrafficMeterStatistics` (total traffic) | **Verified** on V1.00.17 (2026-11-19) |
+| Traffic **per device** (`AdvancedQoS:1#GetCurrentDeviceBandwidth` and similar) | **Not supported**: the router answers 501 |
+| Restart router (`DeviceConfig#Reboot`) | **Not verified** (testing it would restart the router). A 501 answer is shown as "use the power button" |
 
 ---
 
@@ -186,6 +189,13 @@ Then stop the app or disarm it, so it doesn't re-apply the block:
 - **Private/random Wi-Fi addresses.** Phones that use them can show up as a "new" device and escape a schedule. These are flagged **private MAC** on the dashboard. For scheduled devices, turn off private addressing for your home Wi-Fi network on that device.
 - **Undocumented interface.** The SOAP interface isn't documented by NETGEAR. Cable providers can push firmware that changes it. If that happens, `npm run router-check` will show it, and every action will log **failed**; nothing will claim false success.
 - **One schedule timezone for the whole app** (`APP_TIMEZONE`).
+- **No per-device traffic.** The C6230 only reports CPU, memory and total internet usage, so the dashboard's **Router health** card can show that the router is overloaded, but not which device causes it.
+
+### Router health and restart
+
+The dashboard's **Router health** card reads CPU, memory and total traffic from the router (read-only, cached for 15 s). A warning appears when CPU is at least 80% or memory is at least 90%. An overloaded router answers slowly and makes the whole network feel slow.
+
+**Restart router…** asks you to type `RESTART`, then sends the router's restart command. It works whether or not router control is armed, because it doesn't change any device rule. Every device loses internet for about 3–5 minutes. The scheduler pauses polling for 4 minutes, then re-reads the router. After a restart, the button is locked for 10 minutes.
 
 ## 10. Project layout
 
